@@ -169,7 +169,10 @@ proc executeImageUpload(
   multipart: MultipartData
 ): Future[string] {.async.} =
   ## Execute HTTP POST for image upload (Forth: one tiny task)
-  let response = await client.httpClient.post(IMG_API_BASE & "/api/v1/image", multipart)
+  let response = await client.httpClient.post(
+    IMG_API_BASE & "/api/v1/image",
+    multipart = multipart
+  )
   result = await response.body
 
 proc logThumbnailResult(client: GanJingClient, result: ThumbnailResult) =
@@ -230,8 +233,35 @@ proc createDraftVideo*(
   client.logContentResult(result)
 
 # ============================================================================
-# VIDEO UPLOAD - Refactored with helpers
+# VIDEO UPLOAD - Forth-style: small, composed functions
 # ============================================================================
+
+proc prepareVideoData(videoPath: string): tuple[data: string, filename: string] =
+  ## Prepare video data for upload (Forth: one tiny task)
+  (readFileData(videoPath), videoPath.extractFilename())
+
+proc setVideoUploadHeaders(client: GanJingClient, token: string) =
+  ## Set headers for video upload (Forth: one tiny task)
+  client.httpClient.headers = newHttpHeaders({
+    "Accept-Language": "en-US,en;q=0.9",
+    "Authorization": "Bearer " & token
+  })
+
+proc executeVideoUpload(
+  client: GanJingClient,
+  multipart: MultipartData
+): Future[string] {.async.} =
+  ## Execute HTTP POST for video upload (Forth: one tiny task)
+  let response = await client.httpClient.post(
+    VOD_API_BASE & "/api/v1/video",
+    multipart = multipart
+  )
+  result = await response.body
+
+proc logVideoResult(client: GanJingClient, result: VideoUploadResult) =
+  ## Log video upload result (Forth: one tiny task)
+  client.log(&"→ Video uploaded: {result.videoId}")
+  client.log(&"  Filename: {result.filename}")
 
 proc uploadVideo*(
   client: GanJingClient,
@@ -239,55 +269,34 @@ proc uploadVideo*(
   channelId: ChannelId,
   contentId: ContentId
 ): Future[VideoUploadResult] {.async.} =
-  ## Upload video file
-  ## Returns: VideoUploadResult with videoId
-
-  let videoData = readFileData(videoPath)
-  let filename = videoPath.extractFilename()
+  ## Upload video - composed of tiny functions (Forth style)
+  let (videoData, filename) = prepareVideoData(videoPath)
   let token = await client.ensureUploadToken()
-
   let multipart = makeVideoMultipart(filename, videoData, channelId, contentId)
 
-  client.httpClient.headers = newHttpHeaders({
-    "Accept-Language": "en-US,en;q=0.9",
-    "Authorization": "Bearer " & token
-  })
-
-  let response = await client.httpClient.post(
-    VOD_API_BASE & "/api/v1/video",
-    multipart = multipart
-  )
-  let body = await response.body
-
+  client.setVideoUploadHeaders(token)
+  let body = await client.executeVideoUpload(multipart)
   result = parseVideoUploadResult(body)
-
-  client.log(&"→ Video uploaded: {result.videoId}")
-  client.log(&"  Filename: {result.filename}")
+  client.logVideoResult(result)
 
 # ============================================================================
-# STATUS CHECK - Refactored with helpers
+# STATUS CHECK - Forth-style: small, composed functions
 # ============================================================================
 
-proc getVideoStatus*(
+proc setStatusHeaders(client: GanJingClient, token: string) =
+  ## Set headers for status check (Forth: one tiny task)
+  client.httpClient.headers = newHttpHeaders({"Authorization": "Bearer " & token})
+
+proc executeStatusCheck(
   client: GanJingClient,
   videoId: VideoId
-): Future[VideoStatusResult] {.async.} =
-  ## Check video processing status
-  ## Returns: VideoStatusResult with videoId and status details
+): Future[string] {.async.} =
+  ## Execute HTTP GET for status check (Forth: one tiny task)
+  let response = await client.httpClient.get(VOD_API_BASE & &"/api/v1/status/{videoId}")
+  result = await response.body
 
-  let token = await client.ensureUploadToken()
-
-  client.httpClient.headers = newHttpHeaders({
-    "Authorization": "Bearer " & token
-  })
-
-  let response = await client.httpClient.get(
-    VOD_API_BASE & &"/api/v1/status/{videoId}"
-  )
-  let body = await response.body
-
-  result = parseVideoStatus(body)
-
+proc logStatusResult(client: GanJingClient, result: VideoStatusResult) =
+  ## Log status result (Forth: one tiny task)
   client.log(&"→ Status: {result.status}")
   if result.progress > 0:
     client.log(&"  Progress: {result.progress}%")
@@ -295,3 +304,15 @@ proc getVideoStatus*(
     client.log(&"  Video URL: {result.url.get()}")
   if result.durationSec.isSome():
     client.log(&"  Duration: {result.durationSec.get()}s")
+
+proc getVideoStatus*(
+  client: GanJingClient,
+  videoId: VideoId
+): Future[VideoStatusResult] {.async.} =
+  ## Check status - composed of tiny functions (Forth style)
+  let token = await client.ensureUploadToken()
+  client.setStatusHeaders(token)
+
+  let body = await client.executeStatusCheck(videoId)
+  result = parseVideoStatus(body)
+  client.logStatusResult(result)
