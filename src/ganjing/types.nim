@@ -25,18 +25,18 @@ type
     CategoryTravel = "cat11"
     CategoryFood = "cat12"
     CategoryOther = "cat13"
-  
+
   Visibility* = enum
     VisibilityPublic = "public"
     VisibilityPrivate = "private"
     VisibilityUnlisted = "unlisted"
-  
+
   ProcessingStatus* = enum
     StatusUploading = "uploading"
     StatusInProgress = "in_progress"
     StatusProcessed = "processed"
     StatusFailed = "failed"
-  
+
   UploadPhase* = enum
     PhaseNotStarted = "not_started"
     PhaseGettingToken = "getting_token"
@@ -52,34 +52,34 @@ type
   UploadProgress* = object
     phase*: UploadPhase
     message*: string
-    percentComplete*: int  # 0-100
+    percentComplete*: int # 0-100
 
   ProgressCallback* = proc(progress: UploadProgress) {.closure.}
-  
+
   # Auth responses - all fields exposed
   RefreshTokenResponse* = object
     userId*: string
-    token*: string  # New access token
-    refreshToken*: string  # New refresh token
-  
+    token*: string        # New access token
+    refreshToken*: string # New refresh token
+
   UploadTokenResponse* = object
-    token*: string  # Upload token for file operations
-  
+    token*: string # Upload token for file operations
+
   # Image upload response - all IDs and URLs exposed
   ThumbnailResult* = object
-    imageId*: ImageId  # Exposed ID
+    imageId*: ImageId     # Exposed ID
     filename*: string
-    allUrls*: seq[string]  # All generated URLs
-    url672*: string  # Standard poster (672.webp)
-    url1280*: string  # HD poster (1280.webp)
-    url1920*: string  # Full HD poster (1920.webp)
+    allUrls*: seq[string] # All generated URLs
+    url672*: string       # Standard poster (672.webp)
+    url1280*: string      # HD poster (1280.webp)
+    url1920*: string      # Full HD poster (1920.webp)
     analyzedScore*: float
     extension*: string
-  
+
   # Content creation response - all IDs exposed
   ContentResult* = object
-    contentId*: ContentId  # Exposed ID
-    ownerId*: ChannelId  # Exposed channel ID
+    contentId*: ContentId # Exposed ID
+    ownerId*: ChannelId   # Exposed channel ID
     videoType*: string
     categoryId*: string
     slug*: string
@@ -94,19 +94,19 @@ type
     likeCount*: int
     saveCount*: int
     commentCount*: int
-  
+
   # Video upload response - ID exposed
   VideoUploadResult* = object
-    videoId*: VideoId  # Exposed ID
+    videoId*: VideoId # Exposed ID
     filename*: string
-  
+
   # Video status response - ID and all metadata exposed
   VideoStatusResult* = object
-    videoId*: VideoId  # Exposed ID
+    videoId*: VideoId # Exposed ID
     filename*: string
     status*: ProcessingStatus
-    progress*: int  # 0-100
-    # Available when processed:
+    progress*: int    # 0-100
+                      # Available when processed:
     url*: Option[string]
     durationSec*: Option[float]
     width*: Option[int]
@@ -114,7 +114,7 @@ type
     loudness*: Option[string]
     thumbBaseUrl*: Option[string]
     thumbSizes*: Option[string]
-  
+
   # Metadata for video creation
   VideoMetadata* = object
     title*: string
@@ -122,7 +122,7 @@ type
     category*: Category
     visibility*: Visibility
     lang*: string
-  
+
   # High-level upload result - ALL intermediate results preserved
   CompleteUploadResult* = object
     # Quick access IDs
@@ -130,17 +130,17 @@ type
     videoId*: VideoId
     imageId*: ImageId
     webUrl*: string
-    videoUrl*: Option[string]  # m3u8 stream URL if processed
+    videoUrl*: Option[string]           # m3u8 stream URL if processed
 
     # Full intermediate results - all metadata preserved
-    thumbnailResult*: ThumbnailResult  # Complete thumbnail upload response
-    contentResult*: ContentResult      # Complete draft creation response
-    videoResult*: VideoUploadResult    # Complete video upload response
+    thumbnailResult*: ThumbnailResult   # Complete thumbnail upload response
+    contentResult*: ContentResult       # Complete draft creation response
+    videoResult*: VideoUploadResult     # Complete video upload response
     processedStatus*: VideoStatusResult # Complete status response
 
     # Progress tracking
     currentPhase*: UploadPhase
-    completedAt*: Option[int64]  # Unix timestamp when completed
+    completedAt*: Option[int64]         # Unix timestamp when completed
 
 # String conversion for IDs
 proc `$`*(id: ContentId): string {.borrow.}

@@ -14,9 +14,10 @@ type
     accessToken*: string
     uploadToken*: Option[string]
     httpClient: AsyncHttpClient
-    verbose*: bool  # Enable/disable logging
+    verbose*: bool # Enable/disable logging
 
-proc newGanJingClient*(accessToken: string, verbose: bool = true): GanJingClient =
+proc newGanJingClient*(accessToken: string,
+    verbose: bool = true): GanJingClient =
   ## Create a new client with access token
   result = GanJingClient(
     accessToken: accessToken,
@@ -130,16 +131,19 @@ proc buildDraftPayload(
 # AUTHENTICATION - Refactored with helpers
 # ============================================================================
 
-proc getUploadToken*(client: GanJingClient): Future[UploadTokenResponse] {.async.} =
+proc getUploadToken*(client: GanJingClient): Future[
+    UploadTokenResponse] {.async.} =
   ## Get upload token from access token
   ## Returns: UploadTokenResponse with token field
   let token = await client.ensureUploadToken()
   result = UploadTokenResponse(token: token)
 
-proc refreshAccessToken*(client: GanJingClient): Future[RefreshTokenResponse] {.async.} =
+proc refreshAccessToken*(client: GanJingClient): Future[
+    RefreshTokenResponse] {.async.} =
   ## Get refresh token from current access token
   ## Returns: RefreshTokenResponse with userId, token, refreshToken
-  client.httpClient.headers = newHttpHeaders({"Content-Type": "application/json"})
+  client.httpClient.headers = newHttpHeaders({
+      "Content-Type": "application/json"})
   let requestBody = %* {"token": client.accessToken}
 
   let response = await client.httpClient.post(
@@ -155,7 +159,8 @@ proc refreshAccessToken*(client: GanJingClient): Future[RefreshTokenResponse] {.
 # IMAGE UPLOAD - Forth-style: small, composed functions
 # ============================================================================
 
-proc prepareImageData(imagePath: string): tuple[data: string, filename: string] =
+proc prepareImageData(imagePath: string): tuple[data: string,
+    filename: string] =
   ## Prepare image data for upload (Forth: one tiny task)
   (readFileData(imagePath), imagePath.extractFilename())
 
@@ -186,7 +191,7 @@ proc uploadThumbnail*(
   client: GanJingClient,
   imagePath: string,
   name: string = "thumbnail",
-  sizes: seq[int] = @[140,240,360,380,480,580,672,960,1280,1920]
+  sizes: seq[int] = @[140, 240, 360, 380, 480, 580, 672, 960, 1280, 1920]
 ): Future[ThumbnailResult] {.async.} =
   ## Upload thumbnail - composed of tiny functions (Forth style)
   let (imageData, filename) = prepareImageData(imagePath)
@@ -207,7 +212,8 @@ proc executeDraftCreation(
   payload: JsonNode
 ): Future[string] {.async.} =
   ## Execute HTTP POST for draft creation (Forth: one tiny task)
-  let response = await client.httpClient.post(API_BASE & "/v1.0c/add-content", body = $payload)
+  let response = await client.httpClient.post(API_BASE & "/v1.0c/add-content",
+      body = $payload)
   result = await response.body
 
 proc logContentResult(client: GanJingClient, result: ContentResult) =
@@ -236,7 +242,8 @@ proc createDraftVideo*(
 # VIDEO UPLOAD - Forth-style: small, composed functions
 # ============================================================================
 
-proc prepareVideoData(videoPath: string): tuple[data: string, filename: string] =
+proc prepareVideoData(videoPath: string): tuple[data: string,
+    filename: string] =
   ## Prepare video data for upload (Forth: one tiny task)
   (readFileData(videoPath), videoPath.extractFilename())
 
@@ -263,12 +270,7 @@ proc logVideoResult(client: GanJingClient, result: VideoUploadResult) =
   client.log(&"→ Video uploaded: {result.videoId}")
   client.log(&"  Filename: {result.filename}")
 
-proc uploadVideo*(
-  client: GanJingClient,
-  videoPath: string,
-  channelId: ChannelId,
-  contentId: ContentId
-): Future[VideoUploadResult] {.async.} =
+proc uploadVideo*(client: GanJingClient, videoPath: string, channelId: ChannelId, contentId: ContentId): Future[VideoUploadResult] {.async.} =
   ## Upload video - composed of tiny functions (Forth style)
   let (videoData, filename) = prepareVideoData(videoPath)
   let token = await client.ensureUploadToken()
@@ -292,7 +294,8 @@ proc executeStatusCheck(
   videoId: VideoId
 ): Future[string] {.async.} =
   ## Execute HTTP GET for status check (Forth: one tiny task)
-  let response = await client.httpClient.get(VOD_API_BASE & &"/api/v1/status/{videoId}")
+  let response = await client.httpClient.get(VOD_API_BASE &
+      &"/api/v1/status/{videoId}")
   result = await response.body
 
 proc logStatusResult(client: GanJingClient, result: VideoStatusResult) =

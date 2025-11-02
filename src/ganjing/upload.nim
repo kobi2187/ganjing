@@ -87,13 +87,15 @@ proc logUploadStatus(client: GanJingClient, status: ProcessingStatus, url: strin
 # MID-LEVEL OPERATIONS - Forth-style: small, composed functions
 # ============================================================================
 
-proc logUploadStart(client: GanJingClient, videoPath: string, onProgress: ProgressCallback) =
+proc logUploadStart(client: GanJingClient, videoPath: string,
+    onProgress: ProgressCallback) =
   ## Log upload start (Forth: one tiny task)
   client.log("=== Starting upload ===")
   client.log(&"Video: {videoPath}")
   notifyProgress(onProgress, PhaseGettingToken, "Starting upload", 0)
 
-proc logThumbnailPrep(client: GanJingClient, thumbPath: string, wasExtracted: bool) =
+proc logThumbnailPrep(client: GanJingClient, thumbPath: string,
+    wasExtracted: bool) =
   ## Log thumbnail preparation (Forth: one tiny task)
   if wasExtracted:
     client.log("→ Extracted thumbnail from video")
@@ -123,7 +125,8 @@ proc createDraftStep(
 ): Future[ContentResult] {.async.} =
   ## Create draft with progress (Forth: one composite task)
   notifyProgress(onProgress, PhaseCreatingDraft, "Creating draft video", 50)
-  result = await client.createDraftVideo(channelId, metadata, thumbResult.url672, thumbResult.url1280)
+  result = await client.createDraftVideo(channelId, metadata,
+      thumbResult.url672, thumbResult.url1280)
 
 proc uploadVideoStep(
   client: GanJingClient,
@@ -156,8 +159,10 @@ proc uploadAssets*(
   client.logThumbnailPrep(thumbPath, wasExtracted)
 
   let thumbResult = await client.uploadThumbnailStep(thumbPath, wasExtracted, onProgress)
-  let contentResult = await client.createDraftStep(channelId, metadata, thumbResult, onProgress)
-  let videoResult = await client.uploadVideoStep(videoPath, channelId, contentResult.contentId, onProgress)
+  let contentResult = await client.createDraftStep(channelId, metadata,
+      thumbResult, onProgress)
+  let videoResult = await client.uploadVideoStep(videoPath, channelId,
+      contentResult.contentId, onProgress)
 
   result = (thumbResult, contentResult, videoResult)
 
@@ -188,7 +193,8 @@ proc waitAndGetStatus(
 ): Future[VideoStatusResult] {.async.} =
   ## Wait for processing and get status (Forth: one composite task)
   client.log("→ Waiting for video processing...")
-  notifyProgress(onProgress, PhaseWaitingForProcessing, "Waiting for video processing", 90)
+  notifyProgress(onProgress, PhaseWaitingForProcessing,
+      "Waiting for video processing", 90)
   result = await client.pollUntilReady(videoId, pollInterval, maxWaitTime)
 
 proc getInitialStatus(
@@ -244,7 +250,8 @@ proc uploadVideoComplete*(
   result.populateUploadResult(thumbResult, contentResult, videoResult)
 
   let status = if waitForProcessing:
-    await client.waitAndGetStatus(videoResult.videoId, pollInterval, maxWaitTime, onProgress)
+    await client.waitAndGetStatus(videoResult.videoId, pollInterval,
+        maxWaitTime, onProgress)
   else:
     await client.getInitialStatus(videoResult.videoId, onProgress)
 

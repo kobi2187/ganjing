@@ -3,7 +3,7 @@
 ## Set GANJING_ACCESS_TOKEN and GANJING_CHANNEL_ID environment variables
 
 import std/[asyncdispatch, os, strformat, strutils, options]
-import ganjing
+import "../src/ganjing"
 
 proc createTestFiles() =
   ## Create minimal test files for upload
