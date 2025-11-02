@@ -2,7 +2,7 @@
 ## Run with real credentials to verify end-to-end workflow
 ## Set GANJING_ACCESS_TOKEN and GANJING_CHANNEL_ID environment variables
 
-import std/[asyncdispatch, os, strformat]
+import std/[asyncdispatch, os, strformat, strutils, options]
 import ganjing
 
 proc createTestFiles() =
@@ -17,9 +17,9 @@ proc createTestFiles() =
     writeFile("test_thumb.jpg", "Test image content")
 
 proc testCompleteWorkflow() {.async.} =
-  echo "="*60
+  echo repeat("=", 60)
   echo "GanJing World API Integration Test"
-  echo "="*60
+  echo repeat("=", 60)
   echo ""
   
   # Get credentials from environment
@@ -117,13 +117,13 @@ proc testCompleteWorkflow() {.async.} =
     echo &"  Status: {status.status}"
     echo &"  Progress: {status.progress}%"
     
-    if status.url.isSome:
+    if status.url.isSome():
       echo &"  Video URL: {status.url.get()}"
-    if status.durationSec.isSome:
+    if status.durationSec.isSome():
       echo &"  Duration: {status.durationSec.get()}s"
-    if status.width.isSome and status.height.isSome:
+    if status.width.isSome() and status.height.isSome():
       echo &"  Resolution: {status.width.get()}x{status.height.get()}"
-    if status.loudness.isSome:
+    if status.loudness.isSome():
       echo &"  Loudness: {status.loudness.get()}"
     
     # Test 6: Complete upload workflow (high-level)
@@ -150,13 +150,13 @@ proc testCompleteWorkflow() {.async.} =
     echo &"  Web URL: {completeResult.webUrl}"
     echo &"  Status: {completeResult.processedStatus.status}"
     
-    if completeResult.videoUrl.isSome:
+    if completeResult.videoUrl.isSome():
       echo &"  Video URL: {completeResult.videoUrl.get()}"
     
     echo ""
-    echo "="*60
+    echo repeat("=", 60)
     echo "✅ All integration tests passed!"
-    echo "="*60
+    echo repeat("=", 60)
     echo ""
     echo "Generated IDs (for direct use):"
     echo &"  Content ID: {completeResult.contentId}"

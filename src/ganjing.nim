@@ -33,6 +33,6 @@
 ## waitFor main()
 ## ```
 
-import types, client, upload, responses, videoutils
+import ganjing/[types, client, upload, responses, videoutils]
 
 export types, client, upload, responses, videoutils

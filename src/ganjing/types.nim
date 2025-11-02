@@ -9,13 +9,7 @@ type
   VideoId* = distinct string
   ImageId* = distinct string
   ChannelId* = distinct string
-  
-  # String conversion for IDs
-  proc `$`*(id: ContentId): string {.borrow.}
-  proc `$`*(id: VideoId): string {.borrow.}
-  proc `$`*(id: ImageId): string {.borrow.}
-  proc `$`*(id: ChannelId): string {.borrow.}
-  
+
   # Enums
   Category* = enum
     CategoryNews = "cat1"
@@ -44,14 +38,23 @@ type
     StatusFailed = "failed"
   
   UploadPhase* = enum
-    PhaseNotStarted
-    PhaseGettingToken
-    PhaseUploadingThumbnail
-    PhaseCreatingDraft
-    PhaseUploadingVideo
-    PhaseCheckingStatus
-    PhaseCompleted
-    PhaseFailed
+    PhaseNotStarted = "not_started"
+    PhaseGettingToken = "getting_token"
+    PhaseUploadingThumbnail = "uploading_thumbnail"
+    PhaseCreatingDraft = "creating_draft"
+    PhaseUploadingVideo = "uploading_video"
+    PhaseCheckingStatus = "checking_status"
+    PhaseWaitingForProcessing = "waiting_for_processing"
+    PhaseCompleted = "completed"
+    PhaseFailed = "failed"
+
+  # Progress callback for upload tracking
+  UploadProgress* = object
+    phase*: UploadPhase
+    message*: string
+    percentComplete*: int  # 0-100
+
+  ProgressCallback* = proc(progress: UploadProgress) {.closure.}
   
   # Auth responses - all fields exposed
   RefreshTokenResponse* = object
@@ -120,14 +123,30 @@ type
     visibility*: Visibility
     lang*: string
   
-  # High-level upload result - all IDs exposed
+  # High-level upload result - ALL intermediate results preserved
   CompleteUploadResult* = object
-    contentId*: ContentId  # Exposed
-    videoId*: VideoId  # Exposed
-    imageId*: ImageId  # Exposed
+    # Quick access IDs
+    contentId*: ContentId
+    videoId*: VideoId
+    imageId*: ImageId
     webUrl*: string
     videoUrl*: Option[string]  # m3u8 stream URL if processed
-    processedStatus*: VideoStatusResult
+
+    # Full intermediate results - all metadata preserved
+    thumbnailResult*: ThumbnailResult  # Complete thumbnail upload response
+    contentResult*: ContentResult      # Complete draft creation response
+    videoResult*: VideoUploadResult    # Complete video upload response
+    processedStatus*: VideoStatusResult # Complete status response
+
+    # Progress tracking
+    currentPhase*: UploadPhase
+    completedAt*: Option[int64]  # Unix timestamp when completed
+
+# String conversion for IDs
+proc `$`*(id: ContentId): string {.borrow.}
+proc `$`*(id: VideoId): string {.borrow.}
+proc `$`*(id: ImageId): string {.borrow.}
+proc `$`*(id: ChannelId): string {.borrow.}
 
 # Helper to get web URL from content ID
 proc getWebUrl*(contentId: ContentId): string =

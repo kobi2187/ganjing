@@ -2,6 +2,7 @@
 ## Shows how all IDs are accessible for direct use
 
 import asyncdispatch, ganjing
+import std/strformat
 
 proc demonstrateIdUsage() {.async.} =
   let client = newGanJingClient("your_access_token")
@@ -66,16 +67,16 @@ proc demonstrateIdUsage() {.async.} =
   # Step 5: Complete workflow - ALL IDs exposed
   echo "5. Complete workflow (all IDs)..."
   let result = await client.uploadVideoComplete(
-    "video2.mp4",
-    "thumb2.jpg",
-    channelId,
-    VideoMetadata(
+    videoPath = "video2.mp4",
+    channelId = channelId,
+    metadata = VideoMetadata(
       title: "Complete Test",
       description: "Testing complete workflow",
       category: CategoryTechnology,
       visibility: VisibilityPublic,
       lang: "en-US"
     ),
+    thumbnailPath = "thumb2.jpg",
     waitForProcessing = false
   )
   

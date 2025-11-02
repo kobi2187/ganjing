@@ -2,6 +2,7 @@
 ## Tests verify we correctly parse all IDs and fields from actual API responses
 
 import std/unittest
+import std/options
 import ganjing/[types, responses]
 
 suite "API Response Parsing":
@@ -146,7 +147,7 @@ suite "API Response Parsing":
     check result.filename == "test.mp4"
     check result.status == StatusInProgress
     check result.progress == 45
-    check result.url.isNone
+    check result.url.isNone()
     
     echo "✓ Video status (in progress) parsed:"
     echo "  VideoId: ", result.videoId
@@ -158,6 +159,7 @@ suite "API Response Parsing":
 {
   "body": {
     "video_id": "video321qwe",
+    "status": "processed",
     "url": "https://video.example.com/master.m3u8",
     "duration_sec": "120.5",
     "filename": "test.mp4",
@@ -177,15 +179,15 @@ suite "API Response Parsing":
     
     check $result.videoId == "video321qwe"
     check result.status == StatusProcessed
-    check result.url.isSome
+    check result.url.isSome()
     check result.url.get() == "https://video.example.com/master.m3u8"
-    check result.durationSec.isSome
+    check result.durationSec.isSome()
     check result.durationSec.get() == 120.5
     check result.width.get() == 1920
     check result.height.get() == 1080
     check result.loudness.get() == "-23.4 LUFS"
-    check result.thumbBaseUrl.isSome
-    check result.thumbSizes.isSome
+    check result.thumbBaseUrl.isSome()
+    check result.thumbSizes.isSome()
     
     echo "✓ Video status (processed) parsed:"
     echo "  VideoId: ", result.videoId
