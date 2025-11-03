@@ -85,10 +85,10 @@ proc readFileData(path: string): string =
     raise newException(IOError, "File not found: " & path)
   readFile(path)
 
-proc makeImageMultipart(filename, imageData, name: string): MultipartData =
+proc makeImageMultipart(filename, imageData: string): MultipartData =
   ## Build multipart data for image upload
+  ## NOTE: Only the 'file' field is sent - the 'name' field causes API errors
   result = newMultipartData()
-  result["name"] = name
   result["file"] = (filename, "image/jpeg", imageData)
 
 proc makeVideoMultipart(
@@ -190,13 +190,13 @@ proc logThumbnailResult(client: GanJingClient, result: ThumbnailResult) =
 proc uploadThumbnail*(
   client: GanJingClient,
   imagePath: string,
-  name: string = "thumbnail",
   sizes: seq[int] = @[140, 240, 360, 380, 480, 580, 672, 960, 1280, 1920]
 ): Future[ThumbnailResult] {.async.} =
   ## Upload thumbnail - composed of tiny functions (Forth style)
+  ## NOTE: The 'name' parameter was removed - the API rejects it
   let (imageData, filename) = prepareImageData(imagePath)
   let token = await client.ensureUploadToken()
-  let multipart = makeImageMultipart(filename, imageData, name)
+  let multipart = makeImageMultipart(filename, imageData)
 
   client.setImageUploadHeaders(token, sizes)
   let body = await client.executeImageUpload(multipart)

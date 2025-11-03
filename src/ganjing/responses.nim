@@ -87,18 +87,23 @@ proc parseVideoStatus*(jsonStr: string): VideoStatusResult =
   result.videoId = VideoId(body["video_id"].getStr())
   result.filename = body["filename"].getStr()
 
-  # Parse status
-  let statusStr = body["status"].getStr()
-  result.status = case statusStr
-    of "uploading": StatusUploading
-    of "in_progress": StatusInProgress
-    of "processed": StatusProcessed
-    of "failed": StatusFailed
-    else: StatusFailed
+  # Parse status (optional - when fully processed, no status field is returned)
+  if body.hasKey("status"):
+    let statusStr = body["status"].getStr()
+    result.status = case statusStr
+      of "uploading": StatusUploading
+      of "in_progress": StatusInProgress
+      of "processed": StatusProcessed
+      of "failed": StatusFailed
+      else: StatusFailed
 
-  # Progress (only during processing)
-  if body.hasKey("progress"):
-    result.progress = body["progress"].getInt()
+    # Progress (only during processing)
+    if body.hasKey("progress"):
+      result.progress = body["progress"].getInt()
+  else:
+    # No status field means video is fully processed
+    result.status = StatusProcessed
+    result.progress = 100
 
   # Optional fields when processed
   if body.hasKey("url"):

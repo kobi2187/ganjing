@@ -10,21 +10,55 @@ type
   ImageId* = distinct string
   ChannelId* = distinct string
 
-  # Enums
+  # Enums - All 45 categories from GanJing World
+  # note: for some reason, 10 and 28 are missing in the api.
   Category* = enum
-    CategoryNews = "cat1"
-    CategoryEntertainment = "cat2"
-    CategorySports = "cat3"
-    CategoryEducation = "cat4"
-    CategoryScience = "cat5"
-    CategoryTechnology = "cat6"
-    CategoryGaming = "cat7"
-    CategoryMusic = "cat8"
-    CategoryArtsAndCulture = "cat9"
-    CategoryLifestyle = "cat10"
-    CategoryTravel = "cat11"
-    CategoryFood = "cat12"
-    CategoryOther = "cat13"
+    CategoryArchitecture = "cat1" #
+    CategoryArts = "cat2" #
+    CategoryAutos = "cat3" #
+    CategoryBeauty = "cat4" #
+    CategoryBusiness = "cat5" #
+    CategoryLifeHacks = "cat6" #
+    CategoryEducation = "cat7" #
+    CategoryEntertainment = "cat8" #
+    CategoryFood = "cat9" #
+    CategoryGovernment = "cat11" #
+    CategoryHealth = "cat12" #
+    CategoryCulture = "cat13" #
+    CategoryKids = "cat14" #
+    CategoryLifestyle = "cat15" #
+    CategoryMilitary = "cat16" #
+    CategoryPopularMusic = "cat17" #
+    CategoryNature = "cat18" #
+    CategoryTalkShows = "cat19" #
+    CategoryNonprofit = "cat20" #
+    CategoryPets = "cat21" #
+    CategoryFinance = "cat22" #
+    CategoryTech = "cat23" #
+    CategoryReligion = "cat24" #
+    CategorySports = "cat25" #
+    CategoryMysteries = "cat26" #
+    CategoryTravel = "cat27" #
+    CategoryRelationship = "cat29" #
+    CategoryDance = "cat30" #
+    CategoryCareer = "cat31" #
+    CategoryNews = "cat32" #
+    CategoryTv = "cat33" #
+    CategoryClassicalMusic = "cat34" #
+    CategoryHistory = "cat35" #
+    CategoryFashion = "cat36" #
+    CategoryLaw = "cat37" #
+    CategoryImmigration = "cat38" #
+    CategoryPeople = "cat39" #
+    CategoryLiterature = "cat40" #
+    CategoryIndustrialTechnology = "cat41" #
+    CategoryAgriculture = "cat42" #
+    CategoryHomeProject = "cat43" #
+    CategorySculpture = "cat44" #
+    CategoryCaligraphy = "cat45" #
+    CategoryPhotography = "cat46" #
+    CategoryMovies = "cat47" #
+
 
   Visibility* = enum
     VisibilityPublic = "public"

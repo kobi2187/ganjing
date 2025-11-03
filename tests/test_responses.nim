@@ -195,7 +195,53 @@ suite "API Response Parsing":
     echo "  URL: ", result.url.get()
     echo "  Duration: ", result.durationSec.get(), "s"
     echo "  Resolution: ", result.width.get(), "x", result.height.get()
-  
+
+  test "Parse video status - fully processed (no status field)":
+    # When video is fully processed, the API returns video details WITHOUT a status field
+    # This is the actual behavior from the real API
+    let jsonStr = """
+{
+  "body": {
+    "video_id": "5dc2cfa1-dde9-4a9e-b40e-04e404b5e4d3",
+    "url": "https://video5-us-west.cloudokyo.cloud/video/v13/5d/c2/cf/5dc2cfa1-dde9-4a9e-b40e-04e404b5e4d3/master.m3u8",
+    "duration_sec": "135.000000",
+    "filename": "test_video.mp4",
+    "width": 1760,
+    "height": 1280,
+    "analyzed_logo": "",
+    "analyzed_result": "",
+    "thumb": {
+      "base_url": "https://image5-us-west.cloudokyo.cloud/image/v3/5d/c2/cf/5dc2cfa1-dde9-4a9e-b40e-04e404b5e4d3/",
+      "sizes": "360,420,480,1280"
+    }
+  },
+  "header": {
+    "Cache-Control": "max-age=600"
+  },
+  "status_code": 200
+}"""
+
+    let result = parseVideoStatus(jsonStr)
+
+    check $result.videoId == "5dc2cfa1-dde9-4a9e-b40e-04e404b5e4d3"
+    check result.status == StatusProcessed  # Should default to processed when no status field
+    check result.progress == 100  # Should default to 100%
+    check result.url.isSome()
+    check result.url.get() == "https://video5-us-west.cloudokyo.cloud/video/v13/5d/c2/cf/5dc2cfa1-dde9-4a9e-b40e-04e404b5e4d3/master.m3u8"
+    check result.durationSec.isSome()
+    check result.durationSec.get() == 135.0
+    check result.width.get() == 1760
+    check result.height.get() == 1280
+    check result.thumbBaseUrl.isSome()
+
+    echo "✓ Video status (fully processed, no status field) parsed:"
+    echo "  VideoId: ", result.videoId
+    echo "  Status: ", result.status, " (defaulted)"
+    echo "  Progress: ", result.progress, "% (defaulted)"
+    echo "  URL: ", result.url.get()
+    echo "  Duration: ", result.durationSec.get(), "s"
+    echo "  Resolution: ", result.width.get(), "x", result.height.get()
+
   test "Parse refresh token response":
     let jsonStr = """
 {
