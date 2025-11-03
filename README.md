@@ -1,21 +1,22 @@
 # GanJing World API Client for Nim
 
-An elegant, production-ready Nim client library for the [GanJing World](https://www.ganjingworld.com) video platform API.
+A Nim client library for uploading videos to the [GanJing World](https://www.ganjingworld.com) video platform.
 
-Built with [Forth philosophy](FORTH_PHILOSOPHY.md): small, composable functions that give you full control over your video uploads.
+**Current scope:** This library handles video uploads only. It does not support retrieving, updating, or deleting videos.
+
+Built with [Forth philosophy](FORTH_PHILOSOPHY.md): small, composable functions that give you control over your upload workflow.
 
 ## Features
 
-- **Simple & Elegant** - One-line uploads for beginners
+- **Simple API** - One-line uploads for basic use cases
 - **Composable** - Build custom workflows from primitives
 - **Progress Tracking** - Real-time callbacks with phase and percentage
-- **All Data Preserved** - Every intermediate result accessible
-- **Perfect for Bulk Uploads** - Concurrency control, all IDs exposed
-- **Type-Safe** - Distinct types prevent ID confusion
-- **Forth-Style Design** - Average function size: 5.8 lines
-- **Zero Code Duplication** - DRY principles throughout
+- **Complete Data Access** - All intermediate results preserved
+- **Type-Safe IDs** - Distinct types prevent ID confusion
+- **Error Handling** - Robust parsing with clear error messages
+- **Token Management** - Automatic token refresh
 - **Async/Await** - Non-blocking I/O
-- **100% Test Coverage** - All response parsing tested
+- **Auto Thumbnail Extraction** - Uses ffmpeg if thumbnail not provided
 
 ## Installation
 
@@ -30,7 +31,7 @@ requires "ganjing >= 0.1.0"
 
 ## Quick Start
 
-### Super Simple (One Line)
+### Simple Upload
 
 ```nim
 import asyncdispatch, ganjing
@@ -38,14 +39,13 @@ import asyncdispatch, ganjing
 proc main() {.async.} =
   let client = newGanJingClient("your_access_token")
 
-  # That's it! Everything automatic
   let result = await client.upload(
     "video.mp4",
     ChannelId("your_channel_id"),
     VideoMetadata(
       title: "My Video",
       description: "Amazing content",
-      category: CategoryTechnology,
+      category: CategoryTech,
       visibility: VisibilityPublic,
       lang: "en-US"
     )
@@ -59,9 +59,9 @@ waitFor main()
 
 ## API Levels
 
-The API provides three levels of abstraction - choose what fits your needs:
+The API provides multiple levels of abstraction:
 
-### Level 1: Super Simple (Recommended for Most Users)
+### Level 1: Simple Upload (Recommended)
 
 ```nim
 # Simplest possible - everything automatic
@@ -69,9 +69,9 @@ let result = await client.upload("video.mp4", channelId, metadata)
 echo result.webUrl
 ```
 
-**Features:**
-- Auto-extracts thumbnail if not provided
-- Waits for video processing
+**What it does:**
+- Auto-extracts thumbnail if not provided (requires ffmpeg)
+- Waits for video processing to complete
 - Returns complete result with all IDs
 
 ### Level 2: With Progress Tracking
@@ -100,10 +100,10 @@ let result = await client.upload(
 [100%] PhaseCompleted: Upload complete
 ```
 
-### Level 3: Composable Workflows
+### Level 3: Composable Workflow
 
 ```nim
-# Build custom workflows - access ALL intermediate results
+# Upload assets and handle processing separately
 let (thumbResult, contentResult, videoResult) = await client.uploadAssets(
   "video.mp4",
   "thumb.jpg",
@@ -111,20 +111,19 @@ let (thumbResult, contentResult, videoResult) = await client.uploadAssets(
   metadata
 )
 
-# Access complete intermediate data
+# Access intermediate data
 echo "Thumbnail variants: ", thumbResult.allUrls.len
-echo "All sizes available:"
 echo "  672x: ", thumbResult.url672
 echo "  1280x: ", thumbResult.url1280
 echo "  1920x: ", thumbResult.url1920
 
-echo "Content created at: ", contentResult.createdAt
+echo "Content ID: ", contentResult.contentId
 echo "Video ID: ", videoResult.videoId
 
-# Do custom processing here...
-# Save IDs to database, update UI, etc.
+# Do custom processing...
+# Save IDs to database, etc.
 
-# Poll for processing later
+# Check processing status later
 let status = await client.waitForProcessing(videoResult.videoId)
 echo "Stream URL: ", status.url.get()
 ```
@@ -145,13 +144,17 @@ let result = await client.uploadVideoComplete(
   onProgress = customProgressHandler
 )
 
-# Check later
+# Check status later
 let status = await client.getVideoStatus(result.videoId)
+if status.status == StatusProcessed:
+  echo "Video ready: ", status.url.get()
+elif status.status == StatusFailed:
+  echo "Processing failed"
 ```
 
-## Bulk Upload with Concurrency Control
+## Bulk Uploads
 
-Perfect for uploading multiple videos with progress tracking and concurrency limits:
+Example of uploading multiple videos with concurrency control:
 
 ```nim
 proc uploadWithLimit(
@@ -163,7 +166,7 @@ proc uploadWithLimit(
   var completed: seq[CompleteUploadResult] = @[]
 
   for i, video in videos:
-    # Progress handler for this specific video
+    # Progress handler for this video
     proc progress(p: UploadProgress) =
       echo &"[Video {i+1}] [{p.percentComplete}%] {p.message}"
 
@@ -192,12 +195,10 @@ proc uploadWithLimit(
 # Use it
 let results = await uploadWithLimit(client, videos, maxConcurrent = 2)
 
-# All intermediate results preserved!
 for result in results:
   echo "Video: ", result.webUrl
   echo "  Content ID: ", result.contentId
   echo "  Video ID: ", result.videoId
-  echo "  Thumbnail variants: ", result.thumbnailResult.allUrls.len
 ```
 
 See `examples/bulk_upload_with_progress.nim` for a complete example.
@@ -229,7 +230,7 @@ proc upload*(
 ```
 
 #### uploadAssets()
-Composable workflow - returns all intermediate results:
+Returns all intermediate results for custom workflows:
 ```nim
 proc uploadAssets*(
   client: GanJingClient,
@@ -247,7 +248,7 @@ proc uploadAssets*(
 ```
 
 #### uploadVideoComplete()
-Full control - all options exposed:
+Full control over all options:
 ```nim
 proc uploadVideoComplete*(
   client: GanJingClient,
@@ -264,7 +265,7 @@ proc uploadVideoComplete*(
 ```
 
 #### waitForProcessing()
-Poll video status until complete:
+Poll video status until complete or timeout:
 ```nim
 proc waitForProcessing*(
   client: GanJingClient,
@@ -281,16 +282,15 @@ proc waitForProcessing*(
 proc uploadThumbnail*(
   client: GanJingClient,
   imagePath: string,
-  name: string = "thumbnail",
   sizes: seq[int] = @[140,240,360,380,480,580,672,960,1280,1920]
 ): Future[ThumbnailResult]
 
 # Returns:
 #   imageId: ImageId
 #   filename: string
-#   allUrls: seq[ImageUrl]  # All generated sizes
+#   allUrls: seq[string]         # All generated URLs
 #   url672, url1280, url1920: string  # Common sizes
-#   analyzedScore: Option[float]
+#   analyzedScore: float
 #   extension: string
 ```
 
@@ -308,10 +308,7 @@ proc createDraftVideo*(
 #   contentId: ContentId
 #   ownerId: ChannelId
 #   title, description, slug: string
-#   categoryId: Category
-#   visibility: Visibility
-#   createdAt: int64
-#   viewCount, likeCount, saveCount, commentCount: int
+#   categoryId, videoType, visibility: string
 #   posterUrl, posterHdUrl: string
 ```
 
@@ -339,20 +336,21 @@ proc getVideoStatus*(
 # Returns:
 #   videoId: VideoId
 #   filename: string
-#   status: ProcessingStatus  # Uploading, InProgress, Processed, Failed
+#   status: ProcessingStatus  # StatusUploading, StatusInProgress,
+#                             # StatusProcessed, StatusFailed, StatusUnknown
 #   progress: int  # 0-100
-#   url: Option[string]  # m3u8 stream URL when processed
+#   url: Option[string]              # m3u8 stream URL when processed
 #   durationSec: Option[float]
 #   width, height: Option[int]
-#   loudness: Option[float]
+#   loudness: Option[string]
 #   thumbBaseUrl: Option[string]
-#   thumbSizes: seq[int]
+#   thumbSizes: Option[string]
 ```
 
 ### Authentication
 
 ```nim
-# Get upload token (automatic when needed)
+# Get upload token (called automatically as needed, with expiry handling)
 proc getUploadToken*(client: GanJingClient): Future[UploadTokenResponse]
 
 # Refresh access token
@@ -383,21 +381,48 @@ VideoMetadata(
 ```
 
 ### Enums
+
+#### Categories
+All 45 GanJing World categories (note: cat10 and cat28 are missing from the API):
 ```nim
-# Categories
-CategoryNews, CategoryTechnology, CategoryEducation, CategoryEntertainment,
-CategoryLifestyle, CategorySports, CategoryGaming, CategoryOther
+CategoryArchitecture, CategoryArts, CategoryAutos, CategoryBeauty,
+CategoryBusiness, CategoryLifeHacks, CategoryEducation, CategoryEntertainment,
+CategoryFood, CategoryGovernment, CategoryHealth, CategoryCulture, CategoryKids,
+CategoryLifestyle, CategoryMilitary, CategoryPopularMusic, CategoryNature,
+CategoryTalkShows, CategoryNonprofit, CategoryPets, CategoryFinance, CategoryTech,
+CategoryReligion, CategorySports, CategoryMysteries, CategoryTravel,
+CategoryRelationship, CategoryDance, CategoryCareer, CategoryNews, CategoryTv,
+CategoryClassicalMusic, CategoryHistory, CategoryFashion, CategoryLaw,
+CategoryImmigration, CategoryPeople, CategoryLiterature,
+CategoryIndustrialTechnology, CategoryAgriculture, CategoryHomeProject,
+CategorySculpture, CategoryCaligraphy, CategoryPhotography, CategoryMovies
+```
 
-# Visibility
+#### Visibility
+```nim
 VisibilityPublic, VisibilityPrivate, VisibilityUnlisted
+```
 
-# Processing Status
-StatusUploading, StatusInProgress, StatusProcessed, StatusFailed
+#### Processing Status
+```nim
+StatusUploading     # Video is uploading
+StatusInProgress    # Video is being processed
+StatusProcessed     # Video processing complete
+StatusFailed        # Video processing failed
+StatusUnknown       # Unknown status (unexpected API response)
+```
 
-# Upload Phase (for progress tracking)
-PhaseGettingToken, PhaseUploadingThumbnail, PhaseCreatingDraft,
-PhaseUploadingVideo, PhaseWaitingForProcessing, PhaseCheckingStatus,
-PhaseCompleted
+#### Upload Phase
+```nim
+PhaseNotStarted              # Not started
+PhaseGettingToken            # Getting upload token
+PhaseUploadingThumbnail      # Uploading thumbnail
+PhaseCreatingDraft           # Creating draft video
+PhaseUploadingVideo          # Uploading video file
+PhaseCheckingStatus          # Checking initial status
+PhaseWaitingForProcessing    # Waiting for processing
+PhaseCompleted               # Upload complete
+PhaseFailed                  # Upload failed
 ```
 
 ### Progress Tracking
@@ -413,8 +438,6 @@ ProgressCallback = proc(progress: UploadProgress) {.closure.}
 
 ### Complete Upload Result
 
-All intermediate results preserved:
-
 ```nim
 CompleteUploadResult(
   # Quick access IDs
@@ -422,31 +445,51 @@ CompleteUploadResult(
   videoId: VideoId,
   imageId: ImageId,
   webUrl: string,
-  videoUrl: Option[string],
+  videoUrl: Option[string],           # m3u8 stream URL if processed
 
-  # ALL intermediate results with full metadata
-  thumbnailResult: ThumbnailResult,    # Complete thumbnail data
-  contentResult: ContentResult,        # Complete content data
-  videoResult: VideoUploadResult,      # Complete video data
-  processedStatus: VideoStatusResult,  # Complete status data
+  # Complete intermediate results with all metadata
+  thumbnailResult: ThumbnailResult,   # Complete thumbnail data
+  contentResult: ContentResult,       # Complete content data
+  videoResult: VideoUploadResult,     # Complete video data
+  processedStatus: VideoStatusResult, # Complete status data
 
   # Progress tracking
   currentPhase: UploadPhase,
-  completedAt: Option[int64]
+  completedAt: Option[int64]          # Unix timestamp when completed
 )
 ```
 
-**Perfect for bulk uploaders!** Store all IDs, reference later, access complete metadata.
+## Error Handling
+
+The library provides robust error handling for API responses:
+
+```nim
+try:
+  let result = await client.upload("video.mp4", channelId, metadata)
+  echo result.webUrl
+except ParseError as e:
+  echo "Failed to parse API response: ", e.msg
+except IOError as e:
+  echo "File error: ", e.msg
+except OSError as e:
+  echo "System error: ", e.msg
+```
+
+**ParseError** is raised when:
+- JSON response is malformed
+- Required fields are missing from API response
+- API returns unexpected data format
 
 ## Examples
 
 See the `examples/` directory:
 
-- **`elegant_upload.nim`** - Simplest one-line upload
-- **`simple_upload.nim`** - Basic usage with all options
-- **`using_ids.nim`** - Working with IDs and composition
-- **`progress_tracking.nim`** - Progress monitoring and data access
-- **`bulk_upload_with_progress.nim`** - Concurrent uploads with limits
+- **`simple_upload.nim`** - Basic usage
+- **`elegant_upload.nim`** - Minimal one-line upload
+- **`using_ids.nim`** - Working with IDs
+- **`progress_tracking.nim`** - Progress monitoring
+- **`bulk_upload_with_progress.nim`** - Concurrent uploads
+- **`auto_thumbnail.nim`** - Auto thumbnail extraction
 
 ## Testing
 
@@ -460,7 +503,7 @@ Requires real API credentials:
 ```bash
 export GANJING_ACCESS_TOKEN="your_token"
 export GANJING_CHANNEL_ID="your_channel_id"
-nimble integration
+nim c -r tests/test_real_api.nim
 ```
 
 ## Architecture
@@ -468,66 +511,50 @@ nimble integration
 Built with Forth philosophy - small, composable functions:
 
 ```
-Layer 4: High-Level API (1-2 functions)
+Layer 4: High-Level API
    ↓
    upload()
    uploadVideoComplete()
 
-Layer 3: Workflows (2-3 functions)
+Layer 3: Workflows
    ↓
    uploadAssets()
    waitForProcessing()
 
-Layer 2: Operations (4 functions)
+Layer 2: Operations
    ↓
    uploadThumbnail()
    createDraftVideo()
    uploadVideo()
    getVideoStatus()
 
-Layer 1: Primitives (25+ functions)
+Layer 1: Primitives
    ↓
-   prepareImageData(), setImageUploadHeaders(),
+   prepareImageData(), setUploadHeaders(),
    executeImageUpload(), buildSizesHeader(),
    makeImageMultipart(), readFileData(),
    ensureUploadToken(), etc.
 ```
 
-**Average function size: 5.8 lines**
-
 See [FORTH_PHILOSOPHY.md](FORTH_PHILOSOPHY.md) for details.
 
 ## Design Principles
 
-1. **Small Functions** - Average 5.8 lines, max 14 lines
-2. **Deep Composition** - 4-level stack of abstractions
+1. **Small Functions** - Each function has a single responsibility
+2. **Deep Composition** - 4-layer architecture
 3. **All Data Preserved** - Every intermediate result accessible
 4. **Progress Tracking** - Real-time callbacks throughout
 5. **Type Safety** - Distinct types prevent errors
-6. **Zero Duplication** - DRY principles, reusable primitives
-7. **Single Responsibility** - Each function does ONE thing
-8. **Async First** - All I/O is non-blocking
-9. **Bottom-Up Design** - Primitives → Operations → Workflows → API
-
-## Code Metrics
-
-| Metric | Value |
-|--------|-------|
-| Average function size | 5.8 lines |
-| Largest function | 14 lines |
-| Total helper functions | 35+ |
-| Composition depth | 4 levels |
-| Code duplication | 0% |
-| Tests passing | 12/12 (100%) |
+6. **Error Handling** - Clear exceptions for external data
+7. **Async First** - All I/O is non-blocking
+8. **Token Management** - Automatic refresh with expiry tracking
 
 ## API Endpoints
 
-API version: v1.0c / v1.1
-
 Endpoints used:
-- `gw.ganjingworld.com` - Authentication and content management
-- `imgapi.cloudokyo.cloud` - Image/thumbnail uploads
-- `vodapi.cloudokyo.cloud` - Video uploads and status
+- `gw.ganjingworld.com/v1.0c` - Authentication and content management
+- `imgapi.cloudokyo.cloud/api/v1` - Image/thumbnail uploads
+- `vodapi.cloudokyo.cloud/api/v1` - Video uploads and status
 
 ## Performance Tips
 
@@ -536,9 +563,8 @@ Endpoints used:
    let client = newGanJingClient(accessToken, verbose = false)
    ```
 
-2. **Limit concurrent uploads:**
+2. **Limit concurrent uploads to avoid overwhelming the API:**
    ```nim
-   # Don't overwhelm the API
    let results = await uploadWithLimit(client, videos, maxConcurrent = 3)
    ```
 
@@ -548,13 +574,13 @@ Endpoints used:
      ...,
      waitForProcessing = false  # Return immediately
    )
-   # Poll later
+   # Poll later when needed
    let status = await client.waitForProcessing(result.videoId)
    ```
 
 4. **Use uploadAssets() for custom workflows:**
    ```nim
-   # Upload assets immediately, get all IDs
+   # Upload all assets immediately
    let (thumb, content, video) = await client.uploadAssets(...)
 
    # Store IDs in database
@@ -564,6 +590,13 @@ Endpoints used:
    let status = await client.getVideoStatus(video.videoId)
    ```
 
+## Limitations
+
+- **Upload only** - No support for retrieving, updating, or deleting videos
+- **Memory usage** - Entire files are loaded into memory (not suitable for very large files)
+- **No retry logic** - Network failures are not automatically retried
+- **Single token** - Only one access token per client instance
+
 ## License
 
 MIT
@@ -571,16 +604,10 @@ MIT
 ## Contributing
 
 Contributions welcome! Please ensure:
-- Functions remain small (5-15 lines)
+- Functions remain focused and composable
 - All intermediate results are preserved
+- Error handling is robust
 - Tests are added for new features
 - Documentation is updated
-- Follow Forth philosophy principles
 
 See [FORTH_PHILOSOPHY.md](FORTH_PHILOSOPHY.md) for design guidelines.
-
-## Learn More
-
-- [FORTH_PHILOSOPHY.md](FORTH_PHILOSOPHY.md) - Design philosophy explained
-- [FINAL_SUMMARY.md](FINAL_SUMMARY.md) - Complete refactoring summary
-- [examples/](examples/) - More code examples

@@ -123,12 +123,6 @@ type
     visibility*: string
     posterUrl*: string
     posterHdUrl*: string
-    createdAt*: int64
-    timeScheduled*: int64
-    viewCount*: int
-    likeCount*: int
-    saveCount*: int
-    commentCount*: int
 
   # Video upload response - ID exposed
   VideoUploadResult* = object

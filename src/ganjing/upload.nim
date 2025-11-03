@@ -256,15 +256,21 @@ proc uploadVideoComplete*(
     await client.getInitialStatus(videoResult.videoId, onProgress)
 
   # Set phase based on actual processing status
-  let phase = if status.status == StatusProcessed:
-    PhaseCompleted
-  else:
-    PhaseCheckingStatus
+  let phase = case status.status
+    of StatusProcessed:
+      PhaseCompleted
+    of StatusFailed:
+      PhaseFailed
+    else:
+      PhaseCheckingStatus
+
   result.updateResultWithStatus(status, phase, result.webUrl, client)
 
   # Only finalize if actually completed
   if phase == PhaseCompleted:
     client.finalizeUpload(result, onProgress)
+  elif phase == PhaseFailed:
+    notifyProgress(onProgress, PhaseFailed, "Upload failed", 0)
 
 proc waitForProcessing*(
   client: GanJingClient,

@@ -1,7 +1,7 @@
 ## GanJing World API Client
 ## Core client with small, focused functions returning all IDs
 
-import std/[asyncdispatch, httpclient, json, options, os, strformat]
+import std/[asyncdispatch, httpclient, json, options, os, strformat, times]
 import types, responses
 
 const
@@ -9,10 +9,14 @@ const
   IMG_API_BASE* = "https://imgapi.cloudokyo.cloud"
   VOD_API_BASE* = "https://vodapi.cloudokyo.cloud"
 
+const
+  TOKEN_EXPIRY_SECONDS = 3600 # Upload token expires after 1 hour (conservative estimate)
+
 type
   GanJingClient* = ref object
     accessToken*: string
     uploadToken*: Option[string]
+    uploadTokenExpiry*: int64 # Unix timestamp when token expires
     httpClient: AsyncHttpClient
     verbose*: bool # Enable/disable logging
 
@@ -22,6 +26,7 @@ proc newGanJingClient*(accessToken: string,
   result = GanJingClient(
     accessToken: accessToken,
     uploadToken: none(string),
+    uploadTokenExpiry: 0,
     httpClient: newAsyncHttpClient(),
     verbose: verbose
   )
@@ -40,9 +45,15 @@ proc log*(client: GanJingClient, msg: string) =
 # ============================================================================
 
 proc ensureUploadToken(client: GanJingClient): Future[string] {.async.} =
-  ## Ensure upload token exists, fetch if needed
+  ## Ensure upload token exists and is not expired, fetch if needed
   ## Returns the upload token
-  if client.uploadToken.isNone():
+  let currentTime = getTime().toUnix()
+
+  # Check if token is missing or expired
+  if client.uploadToken.isNone() or currentTime >= client.uploadTokenExpiry:
+    if client.uploadToken.isSome():
+      client.log("→ Upload token expired, refreshing...")
+
     client.httpClient.headers = newHttpHeaders({
       "accept": "application/json",
       "authorization": client.accessToken
@@ -53,6 +64,7 @@ proc ensureUploadToken(client: GanJingClient): Future[string] {.async.} =
     let tokenResp = parseUploadToken(body)
 
     client.uploadToken = some(tokenResp.token)
+    client.uploadTokenExpiry = currentTime + TOKEN_EXPIRY_SECONDS
     client.log("→ Upload token obtained")
 
   return client.uploadToken.get()
@@ -65,19 +77,28 @@ proc makeAuthHeaders(client: GanJingClient): HttpHeaders =
     "content-type": "application/json"
   })
 
-proc makeUploadHeaders(client: GanJingClient, token: string): HttpHeaders =
-  ## Create headers for upload authentication
-  newHttpHeaders({
-    "accept": "application/json, text/plain, */*",
-    "authorization": "Bearer " & token
-  })
-
 proc buildSizesHeader(sizes: seq[int]): string =
   ## Build comma-separated sizes header
   result = ""
   for i, size in sizes:
     if i > 0: result.add(",")
     result.add($size)
+
+proc setUploadHeaders(
+  client: GanJingClient,
+  token: string,
+  resizingSizes: seq[int] = @[],
+  acceptLanguage: string = ""
+) =
+  ## Unified header setter for all upload operations
+  ## Set resizingSizes for image uploads, acceptLanguage for video uploads
+  client.httpClient.headers = newHttpHeaders({"Authorization": "Bearer " & token})
+
+  if resizingSizes.len > 0:
+    client.httpClient.headers["resizing-list"] = buildSizesHeader(resizingSizes)
+
+  if acceptLanguage != "":
+    client.httpClient.headers["Accept-Language"] = acceptLanguage
 
 proc readFileData(path: string): string =
   ## Read file and validate it exists
@@ -164,11 +185,6 @@ proc prepareImageData(imagePath: string): tuple[data: string,
   ## Prepare image data for upload (Forth: one tiny task)
   (readFileData(imagePath), imagePath.extractFilename())
 
-proc setImageUploadHeaders(client: GanJingClient, token: string, sizes: seq[int]) =
-  ## Set headers for image upload (Forth: one tiny task)
-  client.httpClient.headers = client.makeUploadHeaders(token)
-  client.httpClient.headers["resizing-list"] = buildSizesHeader(sizes)
-
 proc executeImageUpload(
   client: GanJingClient,
   multipart: MultipartData
@@ -198,7 +214,7 @@ proc uploadThumbnail*(
   let token = await client.ensureUploadToken()
   let multipart = makeImageMultipart(filename, imageData)
 
-  client.setImageUploadHeaders(token, sizes)
+  client.setUploadHeaders(token, resizingSizes = sizes)
   let body = await client.executeImageUpload(multipart)
   result = parseThumbnailResult(body)
   client.logThumbnailResult(result)
@@ -247,13 +263,6 @@ proc prepareVideoData(videoPath: string): tuple[data: string,
   ## Prepare video data for upload (Forth: one tiny task)
   (readFileData(videoPath), videoPath.extractFilename())
 
-proc setVideoUploadHeaders(client: GanJingClient, token: string) =
-  ## Set headers for video upload (Forth: one tiny task)
-  client.httpClient.headers = newHttpHeaders({
-    "Accept-Language": "en-US,en;q=0.9",
-    "Authorization": "Bearer " & token
-  })
-
 proc executeVideoUpload(
   client: GanJingClient,
   multipart: MultipartData
@@ -276,7 +285,7 @@ proc uploadVideo*(client: GanJingClient, videoPath: string, channelId: ChannelId
   let token = await client.ensureUploadToken()
   let multipart = makeVideoMultipart(filename, videoData, channelId, contentId)
 
-  client.setVideoUploadHeaders(token)
+  client.setUploadHeaders(token, acceptLanguage = "en-US,en;q=0.9")
   let body = await client.executeVideoUpload(multipart)
   result = parseVideoUploadResult(body)
   client.logVideoResult(result)
@@ -284,10 +293,6 @@ proc uploadVideo*(client: GanJingClient, videoPath: string, channelId: ChannelId
 # ============================================================================
 # STATUS CHECK - Forth-style: small, composed functions
 # ============================================================================
-
-proc setStatusHeaders(client: GanJingClient, token: string) =
-  ## Set headers for status check (Forth: one tiny task)
-  client.httpClient.headers = newHttpHeaders({"Authorization": "Bearer " & token})
 
 proc executeStatusCheck(
   client: GanJingClient,
@@ -314,7 +319,7 @@ proc getVideoStatus*(
 ): Future[VideoStatusResult] {.async.} =
   ## Check status - composed of tiny functions (Forth style)
   let token = await client.ensureUploadToken()
-  client.setStatusHeaders(token)
+  client.setUploadHeaders(token)
 
   let body = await client.executeStatusCheck(videoId)
   result = parseVideoStatus(body)
