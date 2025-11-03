@@ -4,7 +4,7 @@ A Nim client library for uploading videos to the [GanJing World](https://www.gan
 
 **Current scope:** This library handles video uploads only. It does not support retrieving, updating, or deleting videos.
 
-Built with [Forth philosophy](FORTH_PHILOSOPHY.md): small, composable functions that give you control over your upload workflow.
+small, composable functions that give you control over your upload workflow.
 
 ## Features
 
