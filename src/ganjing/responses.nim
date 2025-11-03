@@ -95,7 +95,7 @@ proc parseVideoStatus*(jsonStr: string): VideoStatusResult =
       of "in_progress": StatusInProgress
       of "processed": StatusProcessed
       of "failed": StatusFailed
-      else: StatusFailed
+      else: StatusUnknown
 
     # Progress (only during processing)
     if body.hasKey("progress"):

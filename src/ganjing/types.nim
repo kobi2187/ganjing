@@ -70,6 +70,7 @@ type
     StatusInProgress = "in_progress"
     StatusProcessed = "processed"
     StatusFailed = "failed"
+    StatusUnknown = "unknown"
 
   UploadPhase* = enum
     PhaseNotStarted = "not_started"
