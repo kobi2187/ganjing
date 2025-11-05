@@ -154,6 +154,18 @@ proc checkApiError(jsonBody: string) =
   try:
     let data = parseJson(jsonBody)
 
+    # Check for error field with status_code: {"error":"...","status_code":...}
+    if data.hasKey("error") and data["error"].kind != JNull:
+      let errorMsg = if data["error"].kind == JString:
+        data["error"].getStr()
+      else:
+        $data["error"]
+      let statusCode = if data.hasKey("status_code"):
+        " [" & $data["status_code"].getInt() & "]"
+      else:
+        ""
+      raise newException(IOError, "API Error" & statusCode & ": " & errorMsg)
+
     # Check for result format: {"result":{"result_code":..,"message":..}}
     if data.hasKey("result"):
       let result = data["result"]
@@ -170,14 +182,6 @@ proc checkApiError(jsonBody: string) =
       # So we should return early and not check for missing "data" field
       return
 
-    # Check for error field at root level
-    if data.hasKey("error") and data["error"].kind != JNull:
-      let errorMsg = if data["error"].kind == JString:
-        data["error"].getStr()
-      else:
-        $data["error"]
-      raise newException(IOError, "API Error: " & errorMsg)
-
     # Check for error message field
     if data.hasKey("message") and data.hasKey("code"):
       raise newException(IOError, "API Error [" & $data["code"].getInt() & "]: " & data["message"].getStr())
@@ -189,13 +193,13 @@ proc checkApiError(jsonBody: string) =
         raise newException(IOError, "API Error: " & msg)
 
     # Check if data field is missing (expected for successful responses)
-    if not data.hasKey("data"):
-      # If data field is missing, this is likely an error response
+    if not data.hasKey("data") and not data.hasKey("body"):
+      # If data/body field is missing, this is likely an error response
       # Show the entire response body for debugging
-      raise newException(IOError, "API Error: Missing 'data' field in response. Response: " & jsonBody)
+      raise newException(IOError, "API Error: Missing 'data'/'body' field in response. Response: " & jsonBody)
 
     # Check if data field is null (sometimes indicates error)
-    if data["data"].kind == JNull:
+    if data.hasKey("data") and data["data"].kind == JNull:
       if data.hasKey("msg"):
         raise newException(IOError, "API Error: " & data["msg"].getStr())
       else:
@@ -346,6 +350,11 @@ proc uploadVideo*(client: GanJingClient, videoPath: string, channelId: ChannelId
 
   client.setUploadHeaders(token, acceptLanguage = "en-US,en;q=0.9")
   let body = await client.executeVideoUpload(multipart)
+  echo "Video upload response: ", body  # Debug logging
+
+  # Check for API errors before parsing
+  checkApiError(body)
+
   result = parseVideoUploadResult(body)
   client.logVideoResult(result)
 

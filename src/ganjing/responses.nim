@@ -104,16 +104,28 @@ proc parseContentResult*(jsonStr: string): ContentResult =
 proc parseVideoUploadResult*(jsonStr: string): VideoUploadResult =
   try:
     let data = parseJson(jsonStr)
-    if not data.hasKey("body"):
-      raise newException(ParseError, "Missing required field: body")
-    let body = data["body"]
+
+    # Handle two response formats:
+    # 1. {"body": {"video_id": ..., "filename": ...}} - expected format
+    # 2. {"data": {"video_id": ..., "filename": ...}} - alternative format
+    # 3. {"result": {"data": {...}}} - another alternative format
+    var videoData: JsonNode
+
+    if data.hasKey("body"):
+      videoData = data["body"]
+    elif data.hasKey("data"):
+      videoData = data["data"]
+    elif data.hasKey("result") and data["result"].hasKey("data"):
+      videoData = data["result"]["data"]
+    else:
+      raise newException(ParseError, "Missing required field: body/data (response: " & jsonStr & ")")
 
     # Extract exposed ID (required)
-    if not body.hasKey("video_id"):
-      raise newException(ParseError, "Missing required field: body.video_id")
+    if not videoData.hasKey("video_id"):
+      raise newException(ParseError, "Missing required field: video_id")
 
-    result.videoId = VideoId(body["video_id"].getStr())
-    result.filename = body["filename"].getStr()
+    result.videoId = VideoId(videoData["video_id"].getStr())
+    result.filename = videoData["filename"].getStr()
   except JsonParsingError as e:
     raise newException(ParseError, "Invalid JSON in video upload response: " & e.msg)
   except KeyError as e:
