@@ -61,11 +61,21 @@ proc parseThumbnailResult*(jsonStr: string): ThumbnailResult =
 
 # Parse content creation response
 proc parseContentResult*(jsonStr: string): ContentResult =
+  echo jsonStr
   try:
     let data = parseJson(jsonStr)
-    if not data.hasKey("data"):
-      raise newException(ParseError, "Missing required field: data")
-    let contentData = data["data"]
+
+    # Handle two response formats:
+    # 1. {"data": {...}} - standard success format with content data
+    # 2. {"result": {"result_code": 201000, "message": "Ok", "data": {...}}} - alternative format
+    var contentData: JsonNode
+
+    if data.hasKey("data"):
+      contentData = data["data"]
+    elif data.hasKey("result") and data["result"].hasKey("data"):
+      contentData = data["result"]["data"]
+    else:
+      raise newException(ParseError, "Missing required field: data (response: " & jsonStr & ")")
 
     # Extract exposed IDs (required fields)
     if not contentData.hasKey("id"):

@@ -148,6 +148,61 @@ proc buildDraftPayload(
     "poster_hd_url": posterHdUrl
   }
 
+proc checkApiError(jsonBody: string) =
+  ## Check if API response contains an error and raise exception if found
+  ## Handles various error response formats from GanJing API
+  try:
+    let data = parseJson(jsonBody)
+
+    # Check for result format: {"result":{"result_code":..,"message":..}}
+    if data.hasKey("result"):
+      let result = data["result"]
+      if result.hasKey("result_code"):
+        let code = result["result_code"].getInt()
+        # Success codes: 0, 200000, 201000
+        if code != 0 and code != 200000 and code != 201000:  # Non-success codes
+          let message = if result.hasKey("message"):
+            result["message"].getStr()
+          else:
+            "Unknown error"
+          raise newException(IOError, &"API Error [{code}]: {message}")
+      # If result_code is a success, this format doesn't have a "data" field
+      # So we should return early and not check for missing "data" field
+      return
+
+    # Check for error field at root level
+    if data.hasKey("error") and data["error"].kind != JNull:
+      let errorMsg = if data["error"].kind == JString:
+        data["error"].getStr()
+      else:
+        $data["error"]
+      raise newException(IOError, "API Error: " & errorMsg)
+
+    # Check for error message field
+    if data.hasKey("message") and data.hasKey("code"):
+      raise newException(IOError, "API Error [" & $data["code"].getInt() & "]: " & data["message"].getStr())
+
+    # Check for msg field (common error format)
+    if data.hasKey("msg"):
+      let msg = data["msg"].getStr()
+      if msg != "" and msg != "success":
+        raise newException(IOError, "API Error: " & msg)
+
+    # Check if data field is missing (expected for successful responses)
+    if not data.hasKey("data"):
+      # If data field is missing, this is likely an error response
+      # Show the entire response body for debugging
+      raise newException(IOError, "API Error: Missing 'data' field in response. Response: " & jsonBody)
+
+    # Check if data field is null (sometimes indicates error)
+    if data["data"].kind == JNull:
+      if data.hasKey("msg"):
+        raise newException(IOError, "API Error: " & data["msg"].getStr())
+      else:
+        raise newException(IOError, "API Error: data field is null")
+  except JsonParsingError as e:
+    raise newException(IOError, "Invalid JSON in API response: " & e.msg)
+
 # ============================================================================
 # AUTHENTICATION - Refactored with helpers
 # ============================================================================
@@ -249,8 +304,12 @@ proc createDraftVideo*(
   ## Create draft - composed of tiny functions (Forth style)
   let payload = buildDraftPayload(channelId, metadata, posterUrl, posterHdUrl)
   client.httpClient.headers = client.makeAuthHeaders()
-
+  echo payload
   let body = await client.executeDraftCreation(payload)
+
+  # Check for API errors before parsing
+  checkApiError(body)
+
   result = parseContentResult(body)
   client.logContentResult(result)
 
