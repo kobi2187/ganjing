@@ -236,7 +236,7 @@ proc uploadVideoComplete*(
   channelId: ChannelId,
   metadata: VideoMetadata,
   thumbnailPath: string = "",
-  waitForProcessing: bool = true,
+  waitForProcessing: bool = false,
   pollInterval: int = 5000,
   maxWaitTime: int = 600000,
   autoExtractThumbnail: bool = true,
